@@ -16,12 +16,12 @@ def main():
     # Listener for semantic checks and TAC generation
     listener = SemanticAndTACListener()
     walker = ParseTreeWalker()
-    walker.walk(listener, tree)
+    walker.walk(listener, tree)  # first scan to find static stuff like classes and their members
+    listener.staticSemantic = False
+    walker.walk(listener, tree)  # now that we have classes and their members, validate other stuff
 
-    # Output TAC
-    print("Three-Address Code (TAC):")
-    for line in listener.tac:
-        print(line)
+    # for debug
+    print(listener.symbol_table.classTables, listener.symbol_table.scopes, listener.symbol_table.methodTable)
 
 if __name__ == "__main__":
     main()

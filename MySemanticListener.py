@@ -5,8 +5,10 @@ from MySymbolTable import SymbolTable
 
 class SemanticAndTACListener(MyGrammarListener):
     def __init__(self):
+        self.staticSemantic = True  # when true, we only scan for members and classes
         self.symbol_table = SymbolTable()
-        self.tac = []  # Store TAC instructions
+        self.current_class = ''
+        self.inFunc = False
         self.temp_counter = 0
         self.expMap = {}
 
@@ -17,6 +19,13 @@ class SemanticAndTACListener(MyGrammarListener):
             return "0"
         if type_ == 'boolean':
             return "false"
+
+    def isValidType(self, type_):
+        if type_ == 'int' or 'int[]' or 'boolean':
+            return True
+        if type_ in self.symbol_table.classTables.keys():
+            return True
+        return False
 
     # Enter a parse tree produced by MyGrammarParser#goal.
     def enterGoal(self, ctx: MyGrammarParser.GoalContext):
@@ -37,10 +46,12 @@ class SemanticAndTACListener(MyGrammarListener):
     # Enter a parse tree produced by MyGrammarParser#classDeclaration.
     def enterClassDeclaration(self, ctx: MyGrammarParser.ClassDeclarationContext):
         self.symbol_table.enter_scope()
+        self.current_class = ctx.identifier().getText()
 
     # Exit a parse tree produced by MyGrammarParser#classDeclaration.
     def exitClassDeclaration(self, ctx: MyGrammarParser.ClassDeclarationContext):
         self.symbol_table.exit_scope()
+        self.current_class = ''
 
     # Enter a parse tree produced by MyGrammarParser#varDeclaration.
     def enterVarDeclaration(self, ctx: MyGrammarParser.VarDeclarationContext):
@@ -50,25 +61,66 @@ class SemanticAndTACListener(MyGrammarListener):
     def exitVarDeclaration(self, ctx: MyGrammarParser.VarDeclarationContext):
         varname = ctx.identifier().getText()
         type_ = ctx.type_().getText()
-        try:
-            print(varname, type_)
-            self.symbol_table.declare(varname, type_)
-        except Exception as c:
-            print("error in semantic analysis :", c)
-            return
-        self.tac.append(varname + " = " + self.defaultForType(type_) + ";")
+        if self.current_class != '' and not self.inFunc:
+            if not self.staticSemantic:
+                # already done
+                return
+            try:
+                self.symbol_table.declareMember(varname, type_, self.current_class)
+            except Exception as c:
+                print("error in semantic analysis:", c)
+                return
+        else:
+            if self.staticSemantic:
+                # incomplete data, ignore
+                return
+            try:
+                if not self.isValidType(type_):
+                    raise Exception("unexpected type:", type_)
+                self.symbol_table.declareVar(varname, type_)
+            except Exception as c:
+                print("error in semantic analysis :", c)
+                return
 
     # Enter a parse tree produced by MyGrammarParser#methodDeclaration.
     def enterMethodDeclaration(self, ctx: MyGrammarParser.MethodDeclarationContext):
-        pass
+        self.inFunc = True
+        self.symbol_table.enter_scope()
+        if self.staticSemantic:
+            retType = ctx.type_().getText()
+            if self.current_class == '':
+                raise Exception("Bad semantic analysis state, cannot declare a method when not in class!")
+            self.symbol_table.declareMember(ctx.identifier().getText(), retType, self.current_class)
+
+        inp = ctx.formalList()
+        for param in inp:
+            if self.staticSemantic:
+                try:
+                    pType = param.type_().getText()
+                    if not self.isValidType(pType):
+                        raise Exception("unexpected parameter type:", pType)
+                    self.symbol_table.declareMethodParams(self.current_class, ctx.identifier().getText(), pType)
+                except Exception as c:
+                    print("error in semantic analysis", c)
+            else:
+                try:
+                    pName = param.identifier().getText()
+                    pType = param.type_().getText()
+                    if not self.isValidType(pType):
+                        raise Exception("unexpected parameter type:", pType)
+                    self.symbol_table.declareVar(pName, pType)
+                except Exception as c:
+                    print("error in semantic analysis", c)
+
 
     # Exit a parse tree produced by MyGrammarParser#methodDeclaration.
     def exitMethodDeclaration(self, ctx: MyGrammarParser.MethodDeclarationContext):
         self.symbol_table.exit_scope()
+        self.inFunc = False
 
     # Enter a parse tree produced by MyGrammarParser#formalList.
     def enterFormalList(self, ctx: MyGrammarParser.FormalListContext):
-        self.symbol_table.enter_scope()
+        pass
 
     # Exit a parse tree produced by MyGrammarParser#formalList.
     def exitFormalList(self, ctx: MyGrammarParser.FormalListContext):
@@ -116,19 +168,19 @@ class SemanticAndTACListener(MyGrammarListener):
 
     # Enter a parse tree produced by MyGrammarParser#ifStat.
     def enterIfStat(self, ctx: MyGrammarParser.IfStatContext):
-        pass
+        self.symbol_table.enter_scope()
 
     # Exit a parse tree produced by MyGrammarParser#ifStat.
     def exitIfStat(self, ctx: MyGrammarParser.IfStatContext):
-        pass
+        self.symbol_table.exit_scope()
 
     # Enter a parse tree produced by MyGrammarParser#whileStat.
     def enterWhileStat(self, ctx: MyGrammarParser.WhileStatContext):
-        pass
+        self.symbol_table.enter_scope()
 
     # Exit a parse tree produced by MyGrammarParser#whileStat.
     def exitWhileStat(self, ctx: MyGrammarParser.WhileStatContext):
-        pass
+        self.symbol_table.exit_scope()
 
     # Enter a parse tree produced by MyGrammarParser#printStat.
     def enterPrintStat(self, ctx: MyGrammarParser.PrintStatContext):
@@ -140,9 +192,7 @@ class SemanticAndTACListener(MyGrammarListener):
 
     # Enter a parse tree produced by MyGrammarParser#assignStat.
     def enterAssignStat(self, ctx: MyGrammarParser.AssignStatContext):
-        varname = ctx.identifier().getText()
-        exp = ctx.expression().getText()
-        print(varname, exp)
+        pass
 
     # Exit a parse tree produced by MyGrammarParser#assignStat.
     def exitAssignStat(self, ctx: MyGrammarParser.AssignStatContext):

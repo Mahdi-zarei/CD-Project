@@ -15,7 +15,7 @@ MultiLineComment    :   '/*' (MultiLineComment|.)*? '*/'  -> channel(HIDDEN)    
 /* Parser Rules */
 goal    :   mainClass ( classDeclaration )* EOF;
 mainClass   :   'class' identifier '{' 'public' 'static' 'void' 'main' '(' 'String' '[' ']' identifier ')' '{' statement '}' '}';
-classDeclaration    :   'class' identifier ( 'extends' identifier )? '{' ( varDeclaration )* ( methodDeclaration )* '}';
+classDeclaration    :   'class' identifier '{' ( varDeclaration )* ( methodDeclaration )* '}';
 varDeclaration  :   type identifier ';';
 methodDeclaration   :   'public' type identifier '(' (formalList ( ',' formalList )*)? ')' '{' ( varDeclaration )* ( statement )* 'return' expression ';' '}';
 
