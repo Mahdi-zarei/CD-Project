@@ -26,6 +26,30 @@ class SemanticAndTACListener(MyGrammarListener):
         if type_ in self.symbol_table.classTables.keys():
             return True
         return False
+        
+    def get_expr_type(self, expr):
+        if isinstance(expr, MyGrammarParser.IdentifierContext):
+            return self.symbol_table.lookupVar(expr.getText())
+        elif isinstance(expr, MyGrammarParser.NumberExprContext):
+            return "int"
+        elif isinstance(expr, MyGrammarParser.TrueExprContext) or isinstance(expr, MyGrammarParser.FalseExprContext):
+            return "boolean"
+        elif isinstance(expr, MyGrammarParser.BinaryExprContext):
+            l eft_type = self.get_expr_type(expr.expr(0))
+            right_type = self.get_expr_type(expr.expr(1))
+            if left_type == right_type:
+                    return left_type
+            else:
+                raise Exception(f"Type mismatch in binary expression: {left_type} and {right_type}")
+        return "unknown"
+
+    def exitAssignStat(self, ctx: MyGrammarParser.AssignStatContext):
+        var_name = ctx.identifier().getText()
+        expr_type = self.get_expr_type(ctx.expr())
+        var_type = self.symbol_table.lookupVar(var_name)
+
+        if var_type != expr_type:
+            raise Exception(f"Type mismatch: Cannot assign {expr_type} to {var_type}")
 
     # Enter a parse tree produced by MyGrammarParser#goal.
     def enterGoal(self, ctx: MyGrammarParser.GoalContext):
